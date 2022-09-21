@@ -10,25 +10,34 @@ import org.bioimageanalysis.icy.deeplearning.python.tensor.PythonTensor;
 import org.bioimageanalysis.icy.deeplearning.python.transformations.BioimageioPythonTransfomations;
 import org.bioimageanalysis.icy.deeplearning.tensor.Tensor;
 import org.bioimageanalysis.icy.jep.exec.PythonExec;
+import org.bioimageanalysis.icy.jep.utils.JepUtils;
 
 import jep.Interpreter;
 import jep.JepConfig;
 import jep.NDArray;
-import jep.SharedInterpreter;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 
+/*
+ * @author Carlos Garcia Lopez de Haro
+ */
 public class BioImageIoPython implements Closeable {
 	
 	private PythonExec pythonExec;
 	private Interpreter interp;
+	private boolean isInstalled = false;
+	private String version;
 	private List<String> instantiatedTransformations = new ArrayList<String>();
 	private String instantiatedNpArray;
 	private String instantiatedTensor;
+	private static String BIOIMAGE_IO_PACKAGE_NAME = "bioimageio.core";
+	private static String DEFAULT_BIOIMAGEIO_VERSION = "0.5.6";
 	
-	private BioImageIoPython(PythonExec pythonExec) {
+	private BioImageIoPython(PythonExec pythonExec) throws IOException {
 		this.pythonExec = pythonExec;
 		this.interp = pythonExec.getInterpreter();
+		if (!isInstalled)
+			install();
 		importGenericModules();
 	}
 
@@ -42,8 +51,34 @@ public class BioImageIoPython implements Closeable {
 		return new BioImageIoPython(PythonExec.build(pythonHome, jepPath, jepConfig));
 	}
 
-	public static BioImageIoPython activate(PythonExec pythonExec) {
+	public static BioImageIoPython activate(PythonExec pythonExec) throws IOException {
 		return new BioImageIoPython(pythonExec);
+	}
+	
+	public static void main(String[] args) throws IllegalArgumentException, IOException {
+		activate(JepUtils.getInstance().getPythonInstance());
+	}
+	
+	public void install() throws IOException {
+		install(DEFAULT_BIOIMAGEIO_VERSION);
+	}
+	
+	public void install(String version) throws IOException {
+		pythonExec.installPythonPackage(BIOIMAGE_IO_PACKAGE_NAME + "==" + version);
+		this.version = version;
+		isInstalled = true;
+	}
+	
+	public boolean checkInstalled() {
+		if (isInstalled)
+			return isInstalled;
+		interp.exec("installed = True" + System.lineSeparator());
+		interp.exec("try:" + System.lineSeparator());
+		interp.exec("\timport bioimageio.core" + System.lineSeparator());
+		interp.exec("except:" + System.lineSeparator());
+		interp.exec("\tinstalled = False" + System.lineSeparator());
+		isInstalled = interp.getValue("installed", boolean.class);
+		return isInstalled;		
 	}
 	
 	private void importGenericModules() {
@@ -116,5 +151,11 @@ public class BioImageIoPython implements Closeable {
 			interp.close();
 	}
 	
+	public String getInstalledVersion() {
+		return version;
+	}
 	
+	public static String getDefaultVersion() {
+		return DEFAULT_BIOIMAGEIO_VERSION;
+	}
 }
