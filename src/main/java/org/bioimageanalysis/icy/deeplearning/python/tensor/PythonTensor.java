@@ -169,13 +169,14 @@ public class PythonTensor {
 	 */
 	public String createCommandToBuildPythonBioiamgeIoTensor() {
 		// First check if xr is imported and if it is not import it
-		String command = "if modulename not in sys.modules:" + System.lineSeparator();
-		command += "	import xarray as xr" + System.lineSeparator();
-		command += 
+		String command = "if \"xarray\" not in sys.modules:" + System.lineSeparator();
+		command += "\timport xarray as xr" + System.lineSeparator();
+		command += "if \"numpy\" not in sys.modules:" + System.lineSeparator();
+		command += "\timport numpy as np" + System.lineSeparator();
 		command += this.getTensorName() + " = xr.DataArray(" + this.getNpArrayVarName()
 				+ ", dims=(";
 		for (String ax : this.getAxesOrder().split(""))
-			command += "\"" + ax + "\"";
+			command += "\"" + ax + "\",";
 		command += "))";
 		return command;
 	}

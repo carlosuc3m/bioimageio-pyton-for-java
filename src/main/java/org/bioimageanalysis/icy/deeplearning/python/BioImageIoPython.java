@@ -1,15 +1,16 @@
 package org.bioimageanalysis.icy.deeplearning.python;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.bioimageanalysis.icy.deeplearning.python.tensor.PythonTensor;
-import org.bioimageanalysis.icy.deeplearning.python.transformations.BioimageioPythonTransfomations;
+import org.bioimageanalysis.icy.deeplearning.python.transformations.BioimageioPythonTransformations;
 import org.bioimageanalysis.icy.deeplearning.tensor.Tensor;
 import org.bioimageanalysis.icy.jep.exec.PythonExec;
+import org.bioimageanalysis.icy.jep.install.system.Log;
 import org.bioimageanalysis.icy.jep.utils.JepUtils;
 
 import jep.Interpreter;
@@ -21,7 +22,7 @@ import net.imglib2.type.numeric.RealType;
 /*
  * @author Carlos Garcia Lopez de Haro
  */
-public class BioImageIoPython implements Closeable {
+public class BioImageIoPython implements AutoCloseable {
 	
 	private PythonExec pythonExec;
 	private Interpreter interp;
@@ -33,37 +34,38 @@ public class BioImageIoPython implements Closeable {
 	private static String BIOIMAGE_IO_PACKAGE_NAME = "bioimageio.core";
 	private static String DEFAULT_BIOIMAGEIO_VERSION = "0.5.6";
 	
-	private BioImageIoPython(PythonExec pythonExec) throws IOException {
+	private BioImageIoPython(PythonExec pythonExec) throws IOException, InterruptedException {
 		this.pythonExec = pythonExec;
 		this.interp = pythonExec.getInterpreter();
+		checkInstalled();
 		if (!isInstalled)
 			install();
 		importGenericModules();
 	}
 
 	public static BioImageIoPython activate(String pythonHome, String jepPath) 
-												throws IllegalArgumentException, IOException {
+												throws IllegalArgumentException, IOException, InterruptedException {
 		return new BioImageIoPython(PythonExec.build(pythonHome, jepPath));
 	}
 
 	public static BioImageIoPython activate(String pythonHome, String jepPath, JepConfig jepConfig) 
-												throws IllegalArgumentException, IOException {
+												throws IllegalArgumentException, IOException, InterruptedException {
 		return new BioImageIoPython(PythonExec.build(pythonHome, jepPath, jepConfig));
 	}
 
-	public static BioImageIoPython activate(PythonExec pythonExec) throws IOException {
+	public static BioImageIoPython activate(PythonExec pythonExec) throws IOException, InterruptedException {
 		return new BioImageIoPython(pythonExec);
 	}
 	
-	public static void main(String[] args) throws IllegalArgumentException, IOException {
+	public static void main(String[] args) throws IllegalArgumentException, IOException, InterruptedException {
 		activate(JepUtils.getInstance().getPythonInstance());
 	}
 	
-	public void install() throws IOException {
+	public void install() throws IOException, InterruptedException {
 		install(DEFAULT_BIOIMAGEIO_VERSION);
 	}
 	
-	public void install(String version) throws IOException {
+	public void install(String version) throws IOException, InterruptedException {
 		pythonExec.installPythonPackage(BIOIMAGE_IO_PACKAGE_NAME + "==" + version);
 		this.version = version;
 		isInstalled = true;
@@ -72,29 +74,24 @@ public class BioImageIoPython implements Closeable {
 	public boolean checkInstalled() {
 		if (isInstalled)
 			return isInstalled;
-		interp.exec("installed = True" + System.lineSeparator());
-		interp.exec("try:" + System.lineSeparator());
-		interp.exec("\timport bioimageio.core" + System.lineSeparator());
-		interp.exec("except:" + System.lineSeparator());
-		interp.exec("\tinstalled = False" + System.lineSeparator());
-		isInstalled = interp.getValue("installed", boolean.class);
+		isInstalled = pythonExec.checkInstalled(BIOIMAGE_IO_PACKAGE_NAME);
 		return isInstalled;		
 	}
 	
 	private void importGenericModules() {
 		if (interp == null)
 			throw new IllegalArgumentException("There should be a 'SharedInterpreter' open.");
-
+		System.out.println(Log.getCurrentTime() + " -- Importing required packages for " + BIOIMAGE_IO_PACKAGE_NAME);
         interp.exec("import numpy as np" + System.lineSeparator());
         interp.exec("import xarray as xr" + System.lineSeparator());
         interp.exec("from bioimageio.core.prediction_pipeline._measure_groups import compute_measures" + System.lineSeparator());
-        interp.exec("from bioimageio.core.prediction_pipeline._utils import PER_SAMPLE" + System.lineSeparator());
+        interp.exec("from bioimageio.core.prediction_pipeline._utils import PER_SAMPLE, FIXED, PER_DATASET" + System.lineSeparator());
 	}
 	
-	public void instantiatePythonTransformationObject(HashMap<String, Object> transformationMap, String tensorName) {
-		BioimageioPythonTransfomations bioimageioPythonTransfomation = BioimageioPythonTransfomations.definePythonBioImageIoTransformation(transformationMap);
+	public void instantiatePythonTransformationObject(Map<String, Object> transformationMap, String tensorName) {
+		BioimageioPythonTransformations bioimageioPythonTransfomation = BioimageioPythonTransformations.definePythonBioImageIoTransformation(transformationMap);
 		String pythonCommand = bioimageioPythonTransfomation.stringToInstantiatePythonTransformation(tensorName);
-        interp.exec(pythonCommand);
+		interp.exec(pythonCommand);
         instantiatedTransformations.add(bioimageioPythonTransfomation.getTransformationObjectName());
 	}
 	
@@ -105,24 +102,23 @@ public class BioImageIoPython implements Closeable {
 		String pythonCommand = pythonTensor.createCommandToBuildPythonBioiamgeIoTensor();
         interp.exec(pythonCommand);
         instantiatedTensor = pythonTensor.getTensorName();
-		
 	}
 
 	public PythonTensor retrieveBioImageIoPythonTensorFromScope(Tensor javaTensor) {
-		interp.exec("tensor_axes_order = " + instantiatedNpArray +".dims");
-		ArrayList<String> tensorDimsArr = interp.getValue("tensor_axes_order", ArrayList.class);
+		interp.exec("tensor_axes_order = " + this.instantiatedTensor +".dims");
+		List<String> tensorDimsArr = (List<String>) interp.getValue("tensor_axes_order");
 		String axesOrder = "";
 		for (String ii : tensorDimsArr)
 			axesOrder += ii;
-		interp.exec("tensor_np_array = " + instantiatedNpArray +".data");
+		interp.exec("tensor_np_array = " + instantiatedTensor +".data");
 		NDArray<?> jepArray = interp.getValue("tensor_np_array", NDArray.class);
 		return PythonTensor.build(javaTensor.getName(), axesOrder, jepArray);
 	}
 	
-	public < T extends RealType< T > & NativeType< T > > Tensor<T> applyTransformationToTensorInPython(HashMap<String, Object> transformationMap, 
+	public < T extends RealType< T > & NativeType< T > > Tensor<T> applyTransformationToTensorInPython(Map<String, Object> transformationMap, 
 																						Tensor<T> javaTensor) {
-		instantiatePythonTransformationObject(transformationMap, javaTensor.getName());
 		sendTensorToInterpreter(javaTensor);		
+		instantiatePythonTransformationObject(transformationMap, instantiatedTensor);
 		executeTransformations();
 		PythonTensor result = retrieveBioImageIoPythonTensorFromScope(javaTensor);
 		return result.toJava();
