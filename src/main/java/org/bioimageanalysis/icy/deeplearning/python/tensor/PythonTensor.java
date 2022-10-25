@@ -4,15 +4,8 @@ import org.bioimageanalysis.icy.deeplearning.tensor.Tensor;
 
 import jep.NDArray;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.integer.ByteType;
-import net.imglib2.type.numeric.integer.IntType;
-import net.imglib2.type.numeric.integer.LongType;
-import net.imglib2.type.numeric.real.DoubleType;
-import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.util.Util;
 
 /**
  * Class that converts Java tensors into objects that can easily be translated into Python BioImage.io
@@ -60,7 +53,7 @@ public class PythonTensor {
 	 * @param nd
 	 * 	data of the tensor as a JEP NDArray
 	 */
-	private PythonTensor(String name, String axesOrder, NDArray< ? > nd) {
+	PythonTensor(String name, String axesOrder, NDArray< ? > nd) {
 		this.name = name;
 		this.axesOrder = axesOrder;
 		this.data = nd;
@@ -113,52 +106,12 @@ public class PythonTensor {
 	 * @return tensor object ready to be converted to Python
 	 */
 	public static < T extends RealType< T > & NativeType< T > > PythonTensor fromJavaTensor( Tensor< T > javaTensor) {
-		RandomAccessibleInterval<T> data = javaTensor.getData();
-		T dt = Util.getTypeFromInterval(data);
-		if (dt instanceof FloatType) {
-			float[] arr = RaiArrayUtils.floatArray((RandomAccessibleInterval<FloatType>) data);
-			NDArray<float[]> nd = new NDArray<float[]>(arr, javaTensor.getShape());
-			return new PythonTensor(javaTensor.getName(), javaTensor.getAxesOrderString(), nd);
-		} else if (dt instanceof IntType) {
-			int[] arr = RaiArrayUtils.intArray((RandomAccessibleInterval<IntType>) data);
-			NDArray<int[]> nd = new NDArray<int[]>(arr, javaTensor.getShape());
-			return new PythonTensor(javaTensor.getName(), javaTensor.getAxesOrderString(), nd);
-		} else if (dt instanceof DoubleType) {
-			double[] arr = RaiArrayUtils.doubleArray((RandomAccessibleInterval<DoubleType>) data);
-			NDArray<double[]> nd = new NDArray<double[]>(arr, javaTensor.getShape());
-			return new PythonTensor(javaTensor.getName(), javaTensor.getAxesOrderString(), nd);
-		} else if (dt instanceof LongType) {
-			long[] arr = RaiArrayUtils.longArray((RandomAccessibleInterval<LongType>) data);
-			NDArray<?> nd = new NDArray<long[]>(arr, javaTensor.getShape());
-			return new PythonTensor(javaTensor.getName(), javaTensor.getAxesOrderString(), nd);
-			
-		} else if (dt instanceof ByteType) {
-			byte[] arr = RaiArrayUtils.byteArray((RandomAccessibleInterval<ByteType>) data);
-			NDArray<byte[]> nd = new NDArray<byte[]>(arr, javaTensor.getShape());
-			return new PythonTensor(javaTensor.getName(), javaTensor.getAxesOrderString(), nd);
-		} else {
-			throw new IllegalArgumentException("Conversion into Python of tensors with dsta type: '" + dt.getClass()+ "' "
-					+ "is not supported.");
-		}
+		return JavaToPythonTensor.fromJavaTensor(javaTensor);
 	}
 	
 	public < T extends RealType< T > & NativeType< T > > Tensor<T> toJava() {
-		long[] longShape = new long[data.getDimensions().length];
-		for (int i = 0; i < longShape.length; i ++)
-			longShape[i] = data.getDimensions()[i];
-		if (data.getData() instanceof int[]) {
-			return (Tensor<T>) Tensor.build(name, axesOrder, ArrayImgs.ints((int[])data.getData(), longShape));
-		} else if (data.getData() instanceof float[]) {
-			return (Tensor<T>) Tensor.build(name, axesOrder, ArrayImgs.floats((float[])data.getData(), longShape));
-		} else if (data.getData() instanceof double[]) {
-			return (Tensor<T>) Tensor.build(name, axesOrder, ArrayImgs.doubles((double[])data.getData(), longShape));
-		} else if (data.getData() instanceof long[]) {
-			return (Tensor<T>) Tensor.build(name, axesOrder, ArrayImgs.longs((long[])data.getData(), longShape));
-		} else if (data.getData() instanceof byte[]) {
-			return (Tensor<T>) Tensor.build(name, axesOrder, ArrayImgs.bytes((byte[])data.getData(), longShape));
-		} else {
-			throw new IllegalArgumentException("");
-		}
+		return (Tensor<T>) Tensor.build(name, axesOrder, 
+				(RandomAccessibleInterval<T>) PythonToJavaTensor.build(data));
 	}
 	
 	/**
