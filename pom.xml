@@ -10,7 +10,7 @@
     </parent>
     
     <artifactId>bioimage-io-python-for-java</artifactId>
-    <version>version>
+    <version>0.0.1</version>
     
     <name>BioImageio Python for Java</name>
     <description>This project holds code allowing to run Python BioImage.io code in Java.
