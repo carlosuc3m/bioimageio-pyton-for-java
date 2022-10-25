@@ -32,20 +32,20 @@
     
     <dependencies>
         <dependency>
-        <dependency>
             <groupId>org.bioimageanalysis.icy</groupId>
             <artifactId>icy-kernel</artifactId>
             <version>${icy-kernel.version}</version>
         </dependency>
+        <dependency>
             <groupId>org.bioimageanalysis.icy</groupId>
             <artifactId>dl-model-runner</artifactId>
             <version>1.0.1</version>
+        </dependency>
 		<dependency>
 		  <groupId>org.bioimageanalysis.icy</groupId>
 		  <artifactId>icy-jep</artifactId>
 		  <version>4.0.3</version>
 		</dependency>
-        </dependency>
     </dependencies>
     <repositories>
         <repository>
